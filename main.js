@@ -40,11 +40,65 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // --- NEW: Portfolio Calculator Logic ---
+    const FINNHUB_API_KEY = 'd66it1hr01qnh6seg4ngd66it1hr01qnh6seg4o0'; // User provided Finnhub API Key
     const portfolioContainer = document.getElementById('portfolio-items-container');
     const addItemBtn = document.getElementById('add-item-btn');
     const calculateBtn = document.getElementById('calculate-btn');
     const resultsContainer = document.getElementById('results-container');
     let itemId = 0;
+
+    // Async function to fetch dividend yield from Finnhub
+    async function getFinnhubDividendYield(stockSymbol) {
+        if (!stockSymbol) return null;
+
+        try {
+            // Step 1: Get current price
+            const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${stockSymbol}&token=${FINNHUB_API_KEY}`);
+            const quoteData = await quoteResponse.json();
+            const currentPrice = quoteData.c; // 'c' is current price
+
+            if (currentPrice === 0) { // If current price is 0, stock might not be found or data unavailable
+                console.warn(`No current price found for ${stockSymbol}`);
+                return null;
+            }
+
+            // Step 2: Get dividend history for the last 15 months to calculate annual dividend
+            const now = new Date();
+            const fifteenMonthsAgo = new Date(now.setMonth(now.getMonth() - 15));
+            const from = Math.floor(fifteenMonthsAgo.getTime() / 1000); // Unix timestamp
+            const to = Math.floor(Date.now() / 1000); // Unix timestamp
+
+            const dividendResponse = await fetch(`https://finnhub.io/api/v1/stock/dividend?symbol=${stockSymbol}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`);
+            const dividendData = await dividendResponse.json();
+
+            let annualDividend = 0;
+            // Sum dividends from the last 12 months (approximate)
+            const twelveMonthsAgo = new Date();
+            twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+            
+            if (dividendData && dividendData.data) {
+                dividendData.data.forEach(div => {
+                    const exDate = new Date(div.exDate * 1000); // Convert Unix timestamp to Date
+                    if (exDate >= twelveMonthsAgo) {
+                        annualDividend += div.amount;
+                    }
+                });
+            }
+
+            if (annualDividend === 0) {
+                console.warn(`No annual dividend found for ${stockSymbol} in the last 12 months.`);
+                return null;
+            }
+
+            // Step 3: Calculate dividend yield
+            const dividendYield = (annualDividend / currentPrice) * 100;
+            return dividendYield.toFixed(2); // Return as percentage with 2 decimal places
+
+        } catch (error) {
+            console.error('Error fetching Finnhub data:', error);
+            return null;
+        }
+    }
 
     // Function to create a new portfolio item row
     const createPortfolioItem = () => {
@@ -52,20 +106,20 @@ document.addEventListener('DOMContentLoaded', function () {
         const itemHtml = `
             <div class="portfolio-item row g-3 align-items-center mb-3 p-3 border rounded" id="item-${itemId}">
                 <div class="col-md-3">
-                    <label class="form-label">종목명</label>
-                    <input type="text" class="form-control" placeholder="예: 삼성전자" value="종목 ${itemId}">
+                    <label class="form-label">종목명 (티커 심볼)</label>
+                    <input type="text" class="form-control stock-name-input" placeholder="예: AAPL" value="">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">투자 원금 (원)</label>
-                    <input type="number" class="form-control" placeholder="1000000" value="1000000">
+                    <input type="number" class="form-control principal-input" placeholder="1000000" value="1000000">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">수익률 (%)</label>
-                    <input type="number" class="form-control" placeholder="8" value="8">
+                    <input type="number" class="form-control return-rate-input" placeholder="8" value="8">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">배당률 (%)</label>
-                    <input type="number" class="form-control" placeholder="2" value="2">
+                    <input type="number" class="form-control dividend-rate-input" placeholder="0.00" value="0.00" readonly>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button class="btn btn-danger remove-item-btn w-100">
@@ -76,6 +130,26 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
         if (portfolioContainer) {
             portfolioContainer.insertAdjacentHTML('beforeend', itemHtml);
+            const newItem = portfolioContainer.lastElementChild;
+            const stockNameInput = newItem.querySelector('.stock-name-input');
+            const dividendRateInput = newItem.querySelector('.dividend-rate-input');
+
+            // Event listener for automatic dividend yield lookup
+            stockNameInput.addEventListener('blur', async function() {
+                const stockSymbol = this.value.trim().toUpperCase();
+                if (stockSymbol) {
+                    dividendRateInput.value = '조회 중...';
+                    const yieldValue = await getFinnhubDividendYield(stockSymbol);
+                    if (yieldValue !== null) {
+                        dividendRateInput.value = yieldValue;
+                    } else {
+                        dividendRateInput.value = '0.00'; // Reset if not found
+                        alert(`'${stockSymbol}'에 대한 배당률 정보를 찾을 수 없습니다. 티커 심볼을 확인하거나 수동으로 입력해주세요.`);
+                    }
+                } else {
+                    dividendRateInput.value = '0.00';
+                }
+            });
         }
     };
 
@@ -84,7 +158,6 @@ document.addEventListener('DOMContentLoaded', function () {
         addItemBtn.addEventListener('click', createPortfolioItem);
     }
     
-
     // Remove item button event (using event delegation)
     if(portfolioContainer){
         portfolioContainer.addEventListener('click', function(e) {
@@ -104,9 +177,9 @@ document.addEventListener('DOMContentLoaded', function () {
             let totalDividends = 0;
 
             items.forEach(item => {
-                const principal = parseFloat(item.querySelectorAll('input')[1].value) || 0;
-                const returnRate = parseFloat(item.querySelectorAll('input')[2].value) || 0;
-                const dividendRate = parseFloat(item.querySelectorAll('input')[3].value) || 0;
+                const principal = parseFloat(item.querySelector('.principal-input').value) || 0;
+                const returnRate = parseFloat(item.querySelector('.return-rate-input').value) || 0;
+                const dividendRate = parseFloat(item.querySelector('.dividend-rate-input').value) || 0;
 
                 totalPrincipal += principal;
                 totalEarnings += principal * (returnRate / 100);
