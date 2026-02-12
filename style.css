@@ -26,15 +26,28 @@ body {
     color: #0d6efd; /* Bootstrap Primary Color */
 }
 
-/* --- Services Section --- */
+/* --- Services Section (Now Calculator) --- */
 #services {
     background-color: #f8f9fa;
 }
 
-.service-icon {
-    font-size: 3rem;
-    color: #0d6efd;
+.portfolio-item {
+    background-color: #fff;
 }
+
+#results-container .card-header h4 {
+    margin-bottom: 0;
+    font-weight: 700;
+}
+
+#results-container .list-group-item span {
+    font-weight: 700;
+}
+
+#results-container .list-group-item strong {
+    font-weight: 500;
+}
+
 
 /* --- About Section --- */
 #about img {
