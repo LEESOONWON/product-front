@@ -44,16 +44,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const addItemBtn = document.getElementById('add-item-btn');
     const calculateBtn = document.getElementById('calculate-btn');
     const resultsContainer = document.getElementById('results-container');
-    let-item-id = 0;
+    let itemId = 0;
 
     // Function to create a new portfolio item row
     const createPortfolioItem = () => {
-        let-item-id++;
+        itemId++;
         const itemHtml = `
-            <div class="portfolio-item row g-3 align-items-center mb-3 p-3 border rounded" id="item-${let-item-id}">
+            <div class="portfolio-item row g-3 align-items-center mb-3 p-3 border rounded" id="item-${itemId}">
                 <div class="col-md-3">
                     <label class="form-label">종목명</label>
-                    <input type="text" class="form-control" placeholder="예: 삼성전자" value="종목 ${let-item-id}">
+                    <input type="text" class="form-control" placeholder="예: 삼성전자" value="종목 ${itemId}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">투자 원금 (원)</label>
@@ -74,7 +74,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </div>
         `;
-        portfolioContainer.insertAdjacentHTML('beforeend', itemHtml);
+        if (portfolioContainer) {
+            portfolioContainer.insertAdjacentHTML('beforeend', itemHtml);
+        }
     };
 
     // Add item button event
