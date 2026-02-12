@@ -25,41 +25,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const summaryElement = document.getElementById('market-summary');
         if (!summaryElement) return;
 
-        summaryElement.textContent = '주요 투자 정보를 불러오는 중...';
+        summaryElement.textContent = '최신 뉴스를 불러오는 중...';
 
         try {
-            const [newsResponse, kospiResponse, sp500Response] = await Promise.all([
-                fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`),
-                fetch(`https://finnhub.io/api/v1/quote?symbol=^KS11&token=${FINNHUB_API_KEY}`),
-                fetch(`https://finnhub.io/api/v1/quote?symbol=^GSPC&token=${FINNHUB_API_KEY}`)
-            ]);
-
-            // Process News
+            const newsResponse = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_API_KEY}`);
+            if (!newsResponse.ok) throw new Error(`API error: ${newsResponse.status}`);
             const newsData = await newsResponse.json();
             const latestHeadline = newsData && newsData[0] ? newsData[0].headline : "최신 뉴스를 가져올 수 없습니다.";
 
-            // Helper to process index
-            const processIndex = async (response, name) => {
-                const data = await response.json();
-                if (data.c === 0) return `${name}: 정보 없음`;
-                const change = data.d; // Change
-                const pctChange = data.dp; // Percent change
-                const sign = change > 0 ? '+' : '';
-                const color = change > 0 ? 'text-danger' : 'text-primary'; // Red for up, blue for down
-                return `${name}: <span class="${color}">${sign}${change.toFixed(2)} (${sign}${pctChange.toFixed(2)}%)</span>`;
-            };
-
-            const kospiSummary = await processIndex(kospiResponse, '코스피');
-            const sp500Summary = await processIndex(sp500Response, 'S&P 500');
-
-            summaryElement.innerHTML = `
-                <span class="fw-bold">[뉴스]</span> ${latestHeadline.substring(0, 50)}... | 
-                <span class="fw-bold"> [지수]</span> ${kospiSummary} | ${sp500Summary}
-            `;
+            summaryElement.innerHTML = `<span class="fw-bold">[뉴스]</span> ${latestHeadline}`;
 
         } catch (error) {
             console.error('Error fetching headline data:', error);
-            summaryElement.textContent = '주요 투자 정보를 불러오는 데 실패했습니다.';
+            summaryElement.textContent = '최신 뉴스 불러오기에 실패했습니다.';
         }
     }
 
