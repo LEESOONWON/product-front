@@ -41,6 +41,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- NEW: Portfolio Calculator Logic ---
     const FINNHUB_API_KEY = 'd66it1hr01qnh6seg4ngd66it1hr01qnh6seg4o0'; // User provided Finnhub API Key
+    
+    // Manual map for major Korean stocks
+    const KOREAN_STOCK_MAP = {
+        "삼성전자": "005930.KS",
+        "SK하이닉스": "000660.KS",
+        "LG에너지솔루션": "373220.KS",
+        "삼성바이오로직스": "207940.KS",
+        "현대차": "005380.KS",
+        "NAVER": "035420.KS",
+        "카카오": "035720.KS",
+        "POSCO홀딩스": "005490.KS",
+        "LG화학": "051910.KS",
+        "삼성SDI": "006400.KS",
+        "기아": "000270.KS",
+        "셀트리온": "068270.KS",
+        "KB금융": "105560.KS",
+        "신한지주": "055550.KS",
+        "삼성물산": "028260.KS",
+        "카카오뱅크": "323410.KS",
+        "현대모비스": "012330.KS",
+        "SK이노베이션": "096770.KS",
+        "고려아연": "010130.KS",
+        "HMM": "011200.KS"
+    };
+
     const portfolioContainer = document.getElementById('portfolio-items-container');
     const addItemBtn = document.getElementById('add-item-btn');
     const calculateBtn = document.getElementById('calculate-btn');
@@ -54,32 +79,35 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             // Step 1: Get current price
             const quoteResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=${stockSymbol}&token=${FINNHUB_API_KEY}`);
+            if (!quoteResponse.ok) throw new Error(`API error: ${quoteResponse.status}`);
             const quoteData = await quoteResponse.json();
             const currentPrice = quoteData.c; // 'c' is current price
 
-            if (currentPrice === 0) { // If current price is 0, stock might not be found or data unavailable
+            if (!currentPrice || currentPrice === 0) {
                 console.warn(`No current price found for ${stockSymbol}`);
                 return null;
             }
 
             // Step 2: Get dividend history for the last 15 months to calculate annual dividend
-            const now = new Date();
-            const fifteenMonthsAgo = new Date(now.setMonth(now.getMonth() - 15));
-            const from = Math.floor(fifteenMonthsAgo.getTime() / 1000); // Unix timestamp
-            const to = Math.floor(Date.now() / 1000); // Unix timestamp
+            const toDate = new Date();
+            const fromDate = new Date();
+            fromDate.setMonth(fromDate.getMonth() - 15);
 
-            const dividendResponse = await fetch(`https://finnhub.io/api/v1/stock/dividend?symbol=${stockSymbol}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`);
+            const fromTimestamp = Math.floor(fromDate.getTime() / 1000);
+            const toTimestamp = Math.floor(toDate.getTime() / 1000);
+
+            const dividendResponse = await fetch(`https://finnhub.io/api/v1/stock/dividend?symbol=${stockSymbol}&from=${fromTimestamp}&to=${toTimestamp}&token=${FINNHUB_API_KEY}`);
+            if (!dividendResponse.ok) throw new Error(`API error: ${dividendResponse.status}`);
             const dividendData = await dividendResponse.json();
-
+            
             let annualDividend = 0;
-            // Sum dividends from the last 12 months (approximate)
             const twelveMonthsAgo = new Date();
             twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
             
-            if (dividendData && dividendData.data) {
-                dividendData.data.forEach(div => {
-                    const exDate = new Date(div.exDate * 1000); // Convert Unix timestamp to Date
-                    if (exDate >= twelveMonthsAgo) {
+            if (Array.isArray(dividendData)) {
+                 dividendData.forEach(div => {
+                    const exDate = new Date(div.date);
+                    if (exDate >= twelveMonthsAgo && div.amount) {
                         annualDividend += div.amount;
                     }
                 });
@@ -87,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (annualDividend === 0) {
                 console.warn(`No annual dividend found for ${stockSymbol} in the last 12 months.`);
-                return null;
+                return 0; // Return 0 if no dividend, so it can be displayed
             }
 
             // Step 3: Calculate dividend yield
@@ -106,8 +134,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const itemHtml = `
             <div class="portfolio-item row g-3 align-items-center mb-3 p-3 border rounded" id="item-${itemId}">
                 <div class="col-md-3">
-                    <label class="form-label">종목명 (티커 심볼)</label>
-                    <input type="text" class="form-control stock-name-input" placeholder="예: AAPL" value="">
+                    <label class="form-label">종목명 (한글 또는 티커)</label>
+                    <input type="text" class="form-control stock-name-input" placeholder="예: 삼성전자" value="">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">투자 원금 (원)</label>
@@ -136,7 +164,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Event listener for automatic dividend yield lookup
             stockNameInput.addEventListener('blur', async function() {
-                const stockSymbol = this.value.trim().toUpperCase();
+                const inputName = this.value.trim();
+                let stockSymbol = KOREAN_STOCK_MAP[inputName] || inputName.toUpperCase();
+
                 if (stockSymbol) {
                     dividendRateInput.value = '조회 중...';
                     const yieldValue = await getFinnhubDividendYield(stockSymbol);
@@ -144,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         dividendRateInput.value = yieldValue;
                     } else {
                         dividendRateInput.value = '0.00'; // Reset if not found
-                        alert(`'${stockSymbol}'에 대한 배당률 정보를 찾을 수 없습니다. 티커 심볼을 확인하거나 수동으로 입력해주세요.`);
+                        alert(`'${inputName}'에 대한 배당률 정보를 찾을 수 없습니다. 종목명 또는 티커 심볼을 확인해주세요.`);
                     }
                 } else {
                     dividendRateInput.value = '0.00';
